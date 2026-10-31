@@ -11,7 +11,6 @@ from fastapi.responses import FileResponse, PlainTextResponse
 from pydantic import BaseModel
 
 from . import gemma
-from .config import GEMMA_MODEL
 from .graph_tools import load_graph
 from .graphify_runner import normalize_repo_url, regenerate_html, run_pipeline
 from .jobs import Job, store
@@ -57,7 +56,7 @@ def _run_job(job: Job) -> None:
 
 @app.get("/health")
 def health():
-    return {"ok": True, "gemma": gemma.available(), "model": GEMMA_MODEL}
+    return {"ok": True, "gemma": gemma.available(), **gemma.describe()}
 
 
 @app.post("/analyze")
@@ -99,7 +98,7 @@ def summary(job_id: str):
         "stats": rg.stats(), "god_nodes": rg.god_nodes(15), "communities": rg.communities(14),
         "top_dirs": rg.top_dirs(), "surprises": (rg.analysis.get("surprises") or [])[:6],
         "questions": [str(q.get("question"))[:220] for q in (rg.analysis.get("questions") or [])[:6]],
-        "has_tour": (job.dir / "tour.json").exists(), "gemma": gemma.available(), "model": GEMMA_MODEL,
+        "has_tour": (job.dir / "tour.json").exists(), "gemma": gemma.available(), **gemma.describe(),
     }
 
 

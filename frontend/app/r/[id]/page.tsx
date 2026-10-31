@@ -77,7 +77,7 @@ export default function RepoPage() {
             </nav>
           </div>
           <div className="flex items-center gap-4">
-            {summary && <ModelTag online={summary.gemma} model={summary.model} />}
+            {summary && <ModelTag online={summary.gemma} model={summary.model} provider={summary.provider} />}
             {summary?.repo_url && (
               <a className="micro ulink hidden items-center gap-1 sm:flex" href={summary.repo_url.replace(/\.git$/, "")} target="_blank" rel="noreferrer">
                 GitHub <ArrowUpRight size={12} />

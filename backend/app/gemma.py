@@ -1,17 +1,26 @@
-"""Gemma 4 (open-weight, served via the Gemini API) does the reasoning and vision.
+"""The reasoning + vision layer. Gemma 4 (open weights) is the default model.
 
 All prompts receive *graph evidence* produced by graph_tools.py and are told to
 answer only from it. If no API key is configured we fall back to deterministic
 graph-only output so the app still demos.
+
+Providers (REPOLENS_PROVIDER):
+  gemini      Gemma 4 via the Gemini API (default; what the hackathon entry runs on)
+  openrouter  Gemma 4 weights on OpenAI-compatible hosts with reasoning off (fast, still Gemma)
+  openai      OpenAI models, or any OpenAI-compatible server through OPENAI_BASE_URL
 """
 from __future__ import annotations
 
+import base64
 import json
 import re
+import threading
 from concurrent.futures import ThreadPoolExecutor
+from dataclasses import dataclass
 from typing import Any
 
-from .config import GEMINI_API_KEY, GEMMA_MODEL
+from . import config
+from .config import GEMINI_API_KEY, GEMMA_MODEL, PROVIDER
 from .graph_tools import RepoGraph
 
 try:
@@ -21,18 +30,35 @@ except Exception:  # noqa: BLE001 - SDK missing in some dev setups
     genai = None  # type: ignore
     types = None  # type: ignore
 
-_client = None
+try:
+    from openai import OpenAI
+except Exception:  # noqa: BLE001
+    OpenAI = None  # type: ignore
+
+
+@dataclass
+class Image:
+    """Provider-neutral image part; converted per provider in _generate."""
+    data: bytes
+    mime: str
+
+
+MODEL = config.active_model()
+_gemini_client = None
+_oai_client = None
+_client_lock = threading.Lock()  # clients are created once; a racing double-init would GC (and close) the first
 
 
 def available() -> bool:
+    if PROVIDER == "openai":
+        return bool(config.OPENAI_API_KEY and OpenAI is not None)
+    if PROVIDER == "openrouter":
+        return bool(config.OPENROUTER_API_KEY and OpenAI is not None)
     return bool(GEMINI_API_KEY and genai is not None)
 
 
-def _get_client():
-    global _client
-    if _client is None and available():
-        _client = genai.Client(api_key=GEMINI_API_KEY)
-    return _client
+def describe() -> dict:
+    return {"provider": PROVIDER, "model": MODEL, "available": available()}
 
 
 _SYSTEM = ("You are RepoLens, a precise senior engineer. Answer directly and concisely without extended deliberation; "
@@ -40,18 +66,84 @@ _SYSTEM = ("You are RepoLens, a precise senior engineer. Answer directly and con
 
 
 def _generate(parts: list[Any], temperature: float = 0.3, max_tokens: int = 4096) -> str:
+    if PROVIDER in ("openai", "openrouter"):
+        return _generate_openai_compat(parts, temperature, max_tokens)
+    return _generate_gemini(parts, temperature, max_tokens)
+
+
+# ----------------------------------------------------------------------------- Gemini API (Gemma 4)
+def _generate_gemini(parts: list[Any], temperature: float, max_tokens: int) -> str:
     """Gemma 4 on the Gemini API counts its hidden thinking against max_output_tokens and exposes no knob to
     disable it, so caps are generous and the system prompt discourages long deliberation."""
-    client = _get_client()
-    cfg = types.GenerateContentConfig(temperature=temperature, max_output_tokens=max_tokens, system_instruction=_SYSTEM)
-    resp = client.models.generate_content(model=GEMMA_MODEL, contents=parts, config=cfg)
+    global _gemini_client
+    with _client_lock:
+        if _gemini_client is None:
+            _gemini_client = genai.Client(api_key=GEMINI_API_KEY)
+    contents = [types.Part.from_bytes(data=p.data, mime_type=p.mime) if isinstance(p, Image) else p for p in parts]
+
+    def run(cap: int):
+        cfg = types.GenerateContentConfig(temperature=temperature, max_output_tokens=cap, system_instruction=_SYSTEM)
+        return _gemini_client.models.generate_content(model=GEMMA_MODEL, contents=contents, config=cfg)
+
+    resp = run(max_tokens)
     text = resp.text or ""
-    if not text and resp.candidates and resp.candidates[0].finish_reason and resp.candidates[0].finish_reason.name == "MAX_TOKENS":
-        # thinking consumed the whole budget: retry once with a much larger cap
-        cfg = types.GenerateContentConfig(temperature=temperature, max_output_tokens=max_tokens * 3, system_instruction=_SYSTEM)
-        resp = client.models.generate_content(model=GEMMA_MODEL, contents=parts, config=cfg)
-        text = resp.text or ""
+    fin = resp.candidates[0].finish_reason if resp.candidates and resp.candidates[0].finish_reason else None
+    if not text and fin is not None and fin.name == "MAX_TOKENS":
+        text = run(max_tokens * 3).text or ""  # thinking ate the whole budget: retry with a much larger cap
     return text
+
+
+# ------------------------------------------------------------- OpenAI-compatible (OpenAI, OpenRouter, custom)
+def _generate_openai_compat(parts: list[Any], temperature: float, max_tokens: int) -> str:
+    global _oai_client
+    is_openrouter = PROVIDER == "openrouter"
+    base_url = config.OPENROUTER_BASE_URL if is_openrouter else config.OPENAI_BASE_URL
+    api_key = config.OPENROUTER_API_KEY if is_openrouter else config.OPENAI_API_KEY
+    is_openai_com = "api.openai.com" in base_url
+    with _client_lock:
+        if _oai_client is None:
+            headers = {"HTTP-Referer": "https://github.com/tf153/RepoLens", "X-Title": "RepoLens"} if is_openrouter else None
+            _oai_client = OpenAI(api_key=api_key, base_url=base_url, default_headers=headers, timeout=240)
+
+    content: list[dict] = []
+    for p in parts:
+        if isinstance(p, Image):
+            b64 = base64.b64encode(p.data).decode()
+            content.append({"type": "image_url", "image_url": {"url": f"data:{p.mime};base64,{b64}"}})
+        else:
+            content.append({"type": "text", "text": str(p)})
+    messages = [{"role": "system", "content": _SYSTEM}, {"role": "user", "content": content}]
+
+    kwargs: dict[str, Any] = {"model": MODEL, "messages": messages}
+    extra: dict[str, Any] = {}
+    if is_openai_com:
+        # Newer OpenAI models accept max_completion_tokens and reject non-default temperature.
+        kwargs["max_completion_tokens"] = max_tokens
+        if config.LLM_DISABLE_REASONING:
+            kwargs["reasoning_effort"] = "low"
+    else:
+        kwargs["max_tokens"] = max_tokens
+        kwargs["temperature"] = temperature
+        if config.LLM_DISABLE_REASONING:
+            extra["reasoning"] = {"enabled": False}  # OpenRouter-style; ignored by hosts that don't know it
+    if extra:
+        kwargs["extra_body"] = extra
+
+    try:
+        resp = _oai_client.chat.completions.create(**kwargs)
+    except Exception as e:  # noqa: BLE001 - retry once without optional knobs (unsupported params -> 400)
+        if "reasoning" in str(e) or "temperature" in str(e) or "max_tokens" in str(e) or "max_completion_tokens" in str(e):
+            for k in ("reasoning_effort", "extra_body", "temperature"):
+                kwargs.pop(k, None)
+            if "max_completion_tokens" in str(e):
+                kwargs["max_tokens"] = kwargs.pop("max_completion_tokens", max_tokens)
+            elif "max_tokens" in str(e) and not is_openai_com:
+                kwargs["max_completion_tokens"] = kwargs.pop("max_tokens", max_tokens)
+            resp = _oai_client.chat.completions.create(**kwargs)
+        else:
+            raise
+    msg = resp.choices[0].message if resp.choices else None
+    return (msg.content or "") if msg else ""
 
 
 def _parse_json(text: str) -> dict | None:
@@ -124,7 +216,7 @@ def tour(name: str, rg: RepoGraph) -> dict:
     graph = rg.summary_for_llm(max_gods=12, max_comms=14)
     readme = rg.readme_excerpt() or "(no README found)"
     if not available():
-        return _fallback_tour(name, rg) | {"model": "graph-only fallback (no GEMINI_API_KEY)"}
+        return _fallback_tour(name, rg) | {"model": "graph-only fallback (no API key)"}
     tour_prompt = _TOUR_PROMPT.format(name=name, readme=readme, graph=graph, questions=questions or "(none)")
     doc_prompt = _DOC_PROMPT.format(name=name, readme=readme, graph=graph)
     # Two independent calls run concurrently: structured tour + onboarding doc. Halves wall time.
@@ -140,9 +232,9 @@ def tour(name: str, rg: RepoGraph) -> dict:
     if not data:
         fb = _fallback_tour(name, rg)
         fb["onboarding_md"] = doc or text
-        return fb | {"model": GEMMA_MODEL, "parse_warning": "model output was not valid JSON; showing graph-only structure"}
+        return fb | {"model": MODEL, "parse_warning": "model output was not valid JSON; showing graph-only structure"}
     data["onboarding_md"] = _strip_fence(doc)
-    data["model"] = GEMMA_MODEL
+    data["model"] = MODEL
     return data
 
 
@@ -173,9 +265,12 @@ def _fallback_tour(name: str, rg: RepoGraph) -> dict:
 _CHAT_PROMPT = """You are RepoLens, answering a question about a codebase using ONLY the knowledge-graph evidence below
 (produced by Graphify from the AST; edges are tagged EXTRACTED = explicit in source, INFERRED = resolved by analysis).
 Rules:
-- Answer by tracing the graph: name the chain of symbols and the relation on each hop.
+- Answer by tracing the graph: name the chain of symbols and the relation on each hop. Relation meanings:
+  `calls`/`indirect_call` = invokes, `uses` = references the type/value, `method` = class defines that method,
+  `contains` = file defines the symbol, `imports` = module import, `inherits` = subclass.
+- Give the best-supported explanation the evidence allows. Direct edges between the asked symbols ARE the mechanism:
+  explain them. Only after that, note any gap in one sentence (name the two symbols to trace with "path"). Do not refuse.
 - Cite file:line from the evidence for every symbol you mention, like `Router (starlette/routing.py:L586)`.
-- If the evidence does not contain the answer, say exactly what is missing and suggest which two symbols to trace with "path".
 - Never invent symbols, files or behaviour that are not in the evidence. Be concise (under 220 words), use markdown.
 
 Repository: {name}
@@ -183,6 +278,9 @@ Question: {question}
 
 === GRAPH EVIDENCE (subgraph around the matched symbols) ===
 {evidence}
+
+=== GRAPHIFY EXPLAIN (most connected edges of the key symbols) ===
+{explain}
 
 === GRAPHIFY QUERY OUTPUT (BFS, token-budgeted) ===
 {cli}
@@ -193,13 +291,19 @@ def chat(name: str, rg: RepoGraph, question: str) -> dict:
     seeds = rg.seeds_from_question(question)
     sub = rg.neighborhood(seeds, hops=2) if seeds else {"seeds": [], "nodes": [], "edges": [], "paths": [], "explored": 0}
     evidence = rg.evidence_text(sub)
-    cli_out = rg.cli_query(question, budget=900)
     result = {"seeds": sub["seeds"], "paths": sub["paths"], "evidence": sub["edges"][:30], "explored": sub["explored"],
-              "model": GEMMA_MODEL if available() else "graph-only fallback"}
+              "model": MODEL if available() else "graph-only fallback"}
     if not available():
-        result["answer"] = "_GEMINI_API_KEY not configured; showing raw graph evidence._\n\n```\n" + evidence[:3000] + "\n```"
+        result["answer"] = "_No model API key configured; showing raw graph evidence._\n\n```\n" + evidence[:3000] + "\n```"
         return result
-    prompt = _CHAT_PROMPT.format(name=name, question=question, evidence=evidence[:14000], cli=cli_out[:5000])
+    # Graphify CLI context, gathered concurrently: BFS query + `explain` for the two most connected seeds.
+    top_seeds = sorted(sub["seeds"], key=lambda s: s["degree"], reverse=True)[:2]
+    with ThreadPoolExecutor(max_workers=3) as pool:
+        f_query = pool.submit(rg.cli_query, question, 900)
+        f_explain = [pool.submit(rg.cli_explain, s["label"]) for s in top_seeds]
+        cli_out = f_query.result()
+        explain_out = "\n\n".join(f.result()[:2200] for f in f_explain) or "(none)"
+    prompt = _CHAT_PROMPT.format(name=name, question=question, evidence=evidence[:14000], explain=explain_out, cli=cli_out[:4000])
     result["answer"] = _generate([prompt], temperature=0.2, max_tokens=3500)
     return result
 
@@ -230,9 +334,9 @@ Respond with a single JSON object only:
 def diagram_check(name: str, rg: RepoGraph, image: bytes, mime: str) -> dict:
     graph = rg.summary_for_llm(max_gods=15, max_comms=14)
     if not available():
-        return {"error": "GEMINI_API_KEY not configured; diagram check needs Gemma 4 vision.", "components": [],
+        return {"error": "No model API key configured; the diagram check needs a vision model (Gemma 4 by default).", "components": [],
                 "missing_in_diagram": [g["label"] for g in rg.god_nodes(5)], "drift_summary": "", "model": "unavailable"}
-    parts = [types.Part.from_bytes(data=image, mime_type=mime), _DIAGRAM_PROMPT.format(graph=graph)]
+    parts = [Image(image, mime), _DIAGRAM_PROMPT.format(graph=graph)]
     text = _generate(parts, temperature=0.2, max_tokens=6000)
     data = _parse_json(text) or {"components": [], "relationships": [], "missing_in_diagram": [], "drift_summary": text, "drift_score": None}
     # Deterministic verification pass: let the graph confirm/deny each component match.
@@ -246,7 +350,7 @@ def diagram_check(name: str, rg: RepoGraph, image: bytes, mime: str) -> dict:
             comp["verified"] = False
             if comp.get("found_in_graph") and not _matches_community(rg, comp):
                 comp["note"] = (comp.get("note") or "") + " (not verifiable against graph nodes)"
-    data["model"] = GEMMA_MODEL
+    data["model"] = MODEL
     return data
 
 

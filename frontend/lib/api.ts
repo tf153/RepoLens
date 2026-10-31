@@ -55,6 +55,7 @@ export interface Summary {
   has_tour: boolean;
   gemma: boolean;
   model: string;
+  provider?: string;
 }
 
 export interface Tour {

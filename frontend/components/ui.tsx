@@ -109,11 +109,16 @@ export function Skeleton({ lines = 3 }: { lines?: number }) {
   );
 }
 
-export function ModelTag({ online, model }: { online: boolean; model: string }) {
+export function ModelTag({ online, model, provider }: { online: boolean; model: string; provider?: string }) {
+  const via = provider && provider !== "gemini" ? ` · via ${provider}` : "";
   return (
-    <span className={`tag ${online ? "tag-ink" : "tag-warn"}`} title={online ? "Gemma 4 connected" : "No GEMINI_API_KEY — graph-only fallback"}>
+    <span
+      className={`tag ${online ? "tag-ink" : "tag-warn"}`}
+      title={online ? `${model} connected${via}` : "No model API key — graph-only fallback"}
+    >
       <span className={`dot ${online ? "dot-accent" : ""}`} style={!online ? { borderColor: "var(--warn)" } : undefined} />
       <span className="mono">{model}</span>
+      {via && <span className="opacity-70">{via}</span>}
       {!online && <span>offline</span>}
     </span>
   );

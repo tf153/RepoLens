@@ -95,8 +95,9 @@ The UI shows the exact seeds, paths and edges that were used.
 | Next.js 16, React 19, Tailwind CSS 4, react-markdown, lucide-react | frontend | MIT / ISC |
 | nginx, systemd | hosting | BSD-2 / LGPL |
 
-Gemma 4 is the only model in the stack; there is no proprietary model. It can also be run locally
-(Ollama / Transformers): swap `backend/app/gemma.py::_generate`, which is one function.
+Gemma 4 is the model this project is built and submitted on; by default no proprietary model is involved.
+The same weights can be served from any OpenAI-compatible host (OpenRouter, DeepInfra, Together, a local
+Ollama / vLLM) via `REPOLENS_PROVIDER=openrouter` or `openai` + `OPENAI_BASE_URL`; see Configuration.
 
 ## Run locally
 
@@ -143,6 +144,21 @@ On a server the backend reads `/etc/repolens.env` (see [`deploy/repolens.service
 
 Graphify itself is run with `GRAPHIFY_BACKEND=none` and `--code-only`, so it never calls a model and the
 source code never leaves the machine.
+
+#### Optional: other model providers
+
+Gemma 4 on the Gemini API is the default and what this hackathon entry runs on. Because the Gemini API forces
+hidden "thinking" on Gemma 4 with no off switch (see [Known limits](#known-limits)), `backend/app/gemma.py`
+also speaks the OpenAI chat-completions protocol, selected with `REPOLENS_PROVIDER`:
+
+| `REPOLENS_PROVIDER` | Model | Variables | Why |
+| --- | --- | --- | --- |
+| `gemini` (default) | Gemma 4 via Gemini API | `GEMINI_API_KEY`, `GEMMA_MODEL` | Official hosted Gemma 4, text + vision |
+| `openrouter` | **Gemma 4** (`google/gemma-4-26b-a4b-it`) on faster hosts, reasoning disabled | `OPENROUTER_API_KEY`, `OPENROUTER_MODEL` | Same open-weight model, typically 2–4× faster |
+| `openai` | OpenAI (default `gpt-6-luna`) or any OpenAI-compatible server | `OPENAI_API_KEY`, `OPENAI_MODEL`, `OPENAI_BASE_URL` | Fallback / experiments; not open-weight |
+
+`LLM_DISABLE_REASONING=1` (default) asks OpenAI-compatible hosts to skip hidden reasoning. The active provider
+and model are reported by `GET /health` and shown in the UI's model tag.
 
 ### Frontend
 
@@ -230,7 +246,8 @@ an outlined dot is `INFERRED`.
   `max_output_tokens`; the API exposes no knob to turn thinking off for Gemma. A fresh tour takes roughly
   60–90 s (two Gemma calls run in parallel: structured tour + onboarding doc); chat answers take 10–30 s.
   Tours are cached per repository, so demo repos open instantly. Graph-only fallback tours are never cached,
-  so they upgrade automatically once a key is configured.
+  so they upgrade automatically once a key is configured. For lower latency with the same model, point
+  `REPOLENS_PROVIDER=openrouter` at Gemma 4 on an OpenAI-compatible host (see [Configuration](#configuration)).
 - **Repository size.** The hosted demo refuses repositories above `REPOLENS_MAX_FILES` (6000). Graphs above
   ~5000 nodes render as Graphify's aggregated community view in `graph.html`.
 - **Public repositories only.** Clones are unauthenticated, depth 1.

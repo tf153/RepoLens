@@ -287,8 +287,12 @@ class RepoGraph:
                     row = self.edge_row(a, b)
                     if row:
                         edges.append(row)
-        # prioritise explicit, non-"contains" edges
-        edges.sort(key=lambda e: (e["relation"] in ("contains", "imports", "imports_from"), e["confidence"] != "EXTRACTED"))
+        # rank: edges touching a seed first, then by how much the relation explains (calls/uses/method > imports > contains)
+        seed_set = set(seeds)
+        rel_rank = {"calls": 0, "uses": 0, "inherits": 0, "indirect_call": 1, "method": 1, "references": 2,
+                    "imports": 3, "imports_from": 3, "contains": 4, "rationale_for": 1}
+        edges.sort(key=lambda e: (not (e["source_id"] in seed_set or e["target_id"] in seed_set),
+                                  rel_rank.get(e["relation"], 2), e["confidence"] != "EXTRACTED"))
         # always include shortest paths between seed pairs
         paths = []
         for i in range(len(seeds)):
