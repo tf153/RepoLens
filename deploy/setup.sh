@@ -43,7 +43,7 @@ if [[ ! -f /etc/repolens.env ]]; then
 # RepoLens runtime secrets. Restart with: systemctl restart repolens
 GEMINI_API_KEY=
 GEMMA_MODEL=gemma-4-26b-a4b-it
-REPOLENS_MAX_FILES=3000
+REPOLENS_MAX_FILES=6000
 EOF
   chmod 600 /etc/repolens.env
   echo "    wrote /etc/repolens.env  <-- put your GEMINI_API_KEY there"

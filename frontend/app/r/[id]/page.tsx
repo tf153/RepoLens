@@ -72,7 +72,14 @@ export default function RepoPage() {
           </div>
           <nav className="flex items-center gap-1 rounded-lg border border-border bg-panel p-1">
             {TABS.map((t) => (
-              <button key={t.id} className={`tab ${tab === t.id ? "tab-active" : ""}`} onClick={() => setTab(t.id)}>
+              <button
+                key={t.id}
+                className={`tab ${tab === t.id ? "tab-active" : ""}`}
+                onClick={() => {
+                  setTab(t.id);
+                  window.scrollTo({ top: 0 });
+                }}
+              >
                 {t.label}
               </button>
             ))}
@@ -92,7 +99,10 @@ export default function RepoPage() {
                 {summary.god_nodes.slice(0, 10).map((g) => (
                   <li key={g.id} className="text-sm">
                     <div className="flex items-baseline justify-between gap-2">
-                      <span className="truncate font-medium">{g.label}</span>
+                      <span className="truncate font-medium">
+                        {g.label}
+                        {g.is_test && <span className="ml-1 text-[10px] text-muted">test</span>}
+                      </span>
                       <span className="mono text-xs text-accent">{g.degree}</span>
                     </div>
                     <div className="mono truncate text-[11px] text-muted">{g.loc}</div>

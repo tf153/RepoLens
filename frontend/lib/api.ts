@@ -18,6 +18,7 @@ export interface GodNode {
   degree: number;
   file?: string;
   loc: string;
+  is_test?: boolean;
   community?: number;
   community_name: string;
 }

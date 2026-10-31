@@ -125,29 +125,25 @@ class RepoGraph:
 
     # --------------------------------------------------------------- god nodes
     def god_nodes(self, top: int = 15) -> list[dict]:
-        gods = self.analysis.get("gods") or []
+        """Graphify's god nodes, re-ranked so production symbols come before test helpers."""
+        candidates: list[str] = [g["id"] for g in (self.analysis.get("gods") or []) if g.get("id") in self.G]
+        if len(candidates) < top:  # top up from degree ranking
+            for nid, _ in sorted(self.degree.items(), key=lambda kv: kv[1], reverse=True):
+                d = self.G.nodes[nid]
+                if nid in candidates or _is_file_node(d) or d.get("external") or "_rationale_" in nid:
+                    continue
+                candidates.append(nid)
+                if len(candidates) >= top * 3:
+                    break
+        candidates.sort(key=lambda n: (_is_test_path(self.G.nodes[n]), -self.degree.get(n, 0)))
         out = []
-        for g in gods[:top]:
-            nid = g.get("id")
-            if nid not in self.G:
-                continue
+        for nid in candidates[:top]:
             d = self.node(nid)
             out.append({
-                "id": nid, "label": d.get("label", nid), "degree": g.get("degree", d["degree"]),
-                "file": d.get("source_file"), "loc": self.loc(nid),
+                "id": nid, "label": d.get("label", nid), "degree": d["degree"],
+                "file": d.get("source_file"), "loc": self.loc(nid), "is_test": _is_test_path(d),
                 "community": d.get("community"), "community_name": self.community_name(d.get("community")),
             })
-        if not out:  # fallback: compute ourselves
-            ranked = sorted(self.degree.items(), key=lambda kv: kv[1], reverse=True)
-            for nid, deg in ranked:
-                d = self.node(nid)
-                if _is_file_node(d) or d.get("external"):
-                    continue
-                out.append({"id": nid, "label": d.get("label", nid), "degree": deg, "file": d.get("source_file"),
-                            "loc": self.loc(nid), "community": d.get("community"),
-                            "community_name": self.community_name(d.get("community"))})
-                if len(out) >= top:
-                    break
         return out
 
     # ------------------------------------------------------------- communities
@@ -336,7 +332,8 @@ class RepoGraph:
                  "TOP DIRECTORIES: " + ", ".join(self.top_dirs()),
                  "GOD NODES (most connected abstractions):"]
         for g in self.god_nodes(max_gods):
-            parts.append(f"  - {g['label']} (degree {g['degree']}) at {g['loc']}  in {g['community_name']}")
+            tag = "  [test helper]" if g["is_test"] else ""
+            parts.append(f"  - {g['label']} (degree {g['degree']}) at {g['loc']}  in {g['community_name']}{tag}")
         parts.append("COMMUNITIES (Leiden subsystems):")
         for c in self.communities(max_comms):
             parts.append(f"  - [{c['id']}] {c['label']}: size={c['size']} hub={c['hub']} members={', '.join(c['sample'])} files={', '.join(c['files'][:3])}")

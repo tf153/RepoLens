@@ -56,5 +56,5 @@ curl -X POST https://<velocity-app>/api/analyze -H 'content-type: application/js
 | `GEMINI_API_KEY` | – | Required for Gemma 4 (tour, chat, diagram). Without it the app runs in graph-only fallback mode. |
 | `GEMMA_MODEL` | `gemma-4-26b-a4b-it` | Alternative: `gemma-4-31b-it` |
 | `REPOLENS_DATA_DIR` | `backend/data` | Clones + graphs live here |
-| `REPOLENS_MAX_FILES` | `3000` | Refuse larger repos (hosted demo guard) |
+| `REPOLENS_MAX_FILES` | `6000` | Refuse larger repos (hosted demo guard) |
 | `GRAPHIFY_BIN` | `graphify` on PATH | Path to the Graphify CLI |

@@ -15,7 +15,7 @@ GEMMA_MODEL = os.environ.get("GEMMA_MODEL", "gemma-4-26b-a4b-it")
 
 GRAPHIFY_BIN = os.environ.get("GRAPHIFY_BIN") or shutil.which("graphify") or str(Path.home() / ".local/bin/graphify")
 
-MAX_FILES = int(os.environ.get("REPOLENS_MAX_FILES", "3000"))
+MAX_FILES = int(os.environ.get("REPOLENS_MAX_FILES", "6000"))
 CLONE_TIMEOUT = int(os.environ.get("REPOLENS_CLONE_TIMEOUT", "180"))
 EXTRACT_TIMEOUT = int(os.environ.get("REPOLENS_EXTRACT_TIMEOUT", "900"))
 QUERY_TIMEOUT = int(os.environ.get("REPOLENS_QUERY_TIMEOUT", "60"))
