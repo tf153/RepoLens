@@ -1,0 +1,19 @@
+[Unit]
+Description=RepoLens API (FastAPI + Graphify + Gemma 4)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/root/RepoLens/backend
+EnvironmentFile=-/etc/repolens.env
+Environment=PATH=/root/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+Environment=GRAPHIFY_BIN=/root/.local/bin/graphify
+ExecStart=/root/RepoLens/backend/.venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 1 --timeout-keep-alive 75
+Restart=always
+RestartSec=3
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target

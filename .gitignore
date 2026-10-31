@@ -1,0 +1,22 @@
+# python
+__pycache__/
+*.pyc
+backend/.venv/
+backend/data/
+.env
+*.env
+
+# node / next
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+frontend/next-env.d.ts
+frontend/*.tsbuildinfo
+npm-debug.log*
+
+# graphify output (generated, large)
+graphify-out/
+
+# misc
+.DS_Store
+*.log
