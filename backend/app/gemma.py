@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import re
+from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 
 from .config import GEMINI_API_KEY, GEMMA_MODEL
@@ -34,11 +35,23 @@ def _get_client():
     return _client
 
 
+_SYSTEM = ("You are RepoLens, a precise senior engineer. Answer directly and concisely without extended deliberation; "
+           "the evidence you are given is complete, so do not re-derive it. Never invent symbols or files.")
+
+
 def _generate(parts: list[Any], temperature: float = 0.3, max_tokens: int = 4096) -> str:
+    """Gemma 4 on the Gemini API counts its hidden thinking against max_output_tokens and exposes no knob to
+    disable it, so caps are generous and the system prompt discourages long deliberation."""
     client = _get_client()
-    cfg = types.GenerateContentConfig(temperature=temperature, max_output_tokens=max_tokens)
+    cfg = types.GenerateContentConfig(temperature=temperature, max_output_tokens=max_tokens, system_instruction=_SYSTEM)
     resp = client.models.generate_content(model=GEMMA_MODEL, contents=parts, config=cfg)
-    return resp.text or ""
+    text = resp.text or ""
+    if not text and resp.candidates and resp.candidates[0].finish_reason and resp.candidates[0].finish_reason.name == "MAX_TOKENS":
+        # thinking consumed the whole budget: retry once with a much larger cap
+        cfg = types.GenerateContentConfig(temperature=temperature, max_output_tokens=max_tokens * 3, system_instruction=_SYSTEM)
+        resp = client.models.generate_content(model=GEMMA_MODEL, contents=parts, config=cfg)
+        text = resp.text or ""
+    return text
 
 
 def _parse_json(text: str) -> dict | None:
@@ -78,30 +91,65 @@ Repository: {name}
 
 Respond with a single JSON object (no prose outside it) with exactly these keys:
 {{
-  "architecture_summary": "3-6 sentences: what the project is, how it is layered, how data/control flows. Mention concrete symbols/files.",
+  "architecture_summary": "3-5 sentences: what the project is, how it is layered, how data/control flows. Mention concrete symbols/files.",
   "start_here": [ {{"node": "<symbol>", "file": "<path:line>", "why": "<one sentence>"}} ],   // 4-6 items, ordered for a first read
   "subsystems": [ {{"community": <id>, "label": "<2-4 word human name>", "role": "<one sentence>"}} ],  // one per community listed in the evidence
-  "reading_path": [ {{"step": 1, "file": "<path>", "what_to_look_for": "<one sentence>"}} ],  // 5-8 steps
-  "gotchas": ["<surprising coupling or risk, cite symbols>"],   // 2-4 items
-  "onboarding_md": "<a complete markdown onboarding doc (~300-500 words) with headings: Overview, Architecture, Start Here, Key Subsystems, Reading Path, Gotchas. Cite file:line where possible.>"
-}}"""
+  "reading_path": [ {{"step": 1, "file": "<path>", "what_to_look_for": "<one sentence>"}} ],  // 5-7 steps
+  "gotchas": ["<surprising coupling or risk, cite symbols>"]   // 2-4 items
+}}
+Keep every sentence short. No markdown outside the JSON."""
+
+_DOC_PROMPT = """You are RepoLens, writing ONBOARDING.md for a new engineer joining the repository "{name}".
+Use ONLY the knowledge-graph evidence below (built by Graphify from the AST) and the README excerpt. Do not invent files or symbols.
+
+=== README EXCERPT ===
+{readme}
+
+=== GRAPH EVIDENCE ===
+{graph}
+
+Write a complete markdown document of about 300 words with exactly these headings:
+# {name} — onboarding
+## Overview
+## Architecture
+## Start Here
+## Key Subsystems
+## Reading Path
+## Gotchas
+Cite symbols as `Symbol (path:line)` using locations from the evidence. Output only the markdown."""
 
 
 def tour(name: str, rg: RepoGraph) -> dict:
     questions = "\n".join(f"- {q.get('question')}" for q in (rg.analysis.get("questions") or [])[:6])
     graph = rg.summary_for_llm(max_gods=12, max_comms=14)
+    readme = rg.readme_excerpt() or "(no README found)"
     if not available():
         return _fallback_tour(name, rg) | {"model": "graph-only fallback (no GEMINI_API_KEY)"}
-    prompt = _TOUR_PROMPT.format(name=name, readme=rg.readme_excerpt() or "(no README found)", graph=graph,
-                                 questions=questions or "(none)")
-    text = _generate([prompt], temperature=0.35, max_tokens=6000)
+    tour_prompt = _TOUR_PROMPT.format(name=name, readme=readme, graph=graph, questions=questions or "(none)")
+    doc_prompt = _DOC_PROMPT.format(name=name, readme=readme, graph=graph)
+    # Two independent calls run concurrently: structured tour + onboarding doc. Halves wall time.
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        f_tour = pool.submit(_generate, [tour_prompt], 0.3, 6000)
+        f_doc = pool.submit(_generate, [doc_prompt], 0.35, 4500)
+        text = f_tour.result()
+        try:
+            doc = f_doc.result()
+        except Exception as e:  # noqa: BLE001 - doc is secondary; keep the tour
+            doc = f"_onboarding doc generation failed: {e}_"
     data = _parse_json(text)
     if not data:
         fb = _fallback_tour(name, rg)
-        fb["onboarding_md"] = text  # keep whatever the model wrote
-        return fb | {"model": GEMMA_MODEL, "parse_warning": "model output was not valid JSON; showing raw text"}
+        fb["onboarding_md"] = doc or text
+        return fb | {"model": GEMMA_MODEL, "parse_warning": "model output was not valid JSON; showing graph-only structure"}
+    data["onboarding_md"] = _strip_fence(doc)
     data["model"] = GEMMA_MODEL
     return data
+
+
+def _strip_fence(t: str) -> str:
+    t = t.strip()
+    m = re.match(r"^```(?:markdown|md)?\s*(.*?)\s*```$", t, re.S)
+    return m.group(1).strip() if m else t
 
 
 def _fallback_tour(name: str, rg: RepoGraph) -> dict:
@@ -152,7 +200,7 @@ def chat(name: str, rg: RepoGraph, question: str) -> dict:
         result["answer"] = "_GEMINI_API_KEY not configured; showing raw graph evidence._\n\n```\n" + evidence[:3000] + "\n```"
         return result
     prompt = _CHAT_PROMPT.format(name=name, question=question, evidence=evidence[:14000], cli=cli_out[:5000])
-    result["answer"] = _generate([prompt], temperature=0.2, max_tokens=1500)
+    result["answer"] = _generate([prompt], temperature=0.2, max_tokens=3500)
     return result
 
 
@@ -185,7 +233,7 @@ def diagram_check(name: str, rg: RepoGraph, image: bytes, mime: str) -> dict:
         return {"error": "GEMINI_API_KEY not configured; diagram check needs Gemma 4 vision.", "components": [],
                 "missing_in_diagram": [g["label"] for g in rg.god_nodes(5)], "drift_summary": "", "model": "unavailable"}
     parts = [types.Part.from_bytes(data=image, mime_type=mime), _DIAGRAM_PROMPT.format(graph=graph)]
-    text = _generate(parts, temperature=0.2, max_tokens=3000)
+    text = _generate(parts, temperature=0.2, max_tokens=6000)
     data = _parse_json(text) or {"components": [], "relationships": [], "missing_in_diagram": [], "drift_summary": text, "drift_score": None}
     # Deterministic verification pass: let the graph confirm/deny each component match.
     for comp in data.get("components", []):
