@@ -10,9 +10,11 @@ WorkingDirectory=/root/RepoLens/backend
 EnvironmentFile=-/etc/repolens.env
 Environment=PATH=/root/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 Environment=GRAPHIFY_BIN=/root/.local/bin/graphify
-ExecStart=/root/RepoLens/backend/.venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 1 --timeout-keep-alive 75
+# bound to localhost: nginx exposes it on port 80 under /api/
+ExecStart=/root/RepoLens/backend/.venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8000 --workers 1 --timeout-keep-alive 75
 Restart=always
 RestartSec=3
+TimeoutStopSec=15
 LimitNOFILE=65536
 
 [Install]

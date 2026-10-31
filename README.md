@@ -7,7 +7,7 @@ knowledge graph (tree-sitter AST, Leiden communities, "god nodes"; no LLM, no ve
 **Gemma 4** turns that graph into a guided tour, answers *"how does auth reach the database?"* by
 traversing edges (not grepping), and reconciles your whiteboard photo against the real architecture.
 
-Live demo: **http://139.59.32.209:3000** (frontend) · API: `http://139.59.32.209:8000/health`
+Live demo: **http://139.59.32.209** · API: `http://139.59.32.209/api/health`
 Cloudways Velocity URL: see [deploy/CLOUDWAYS.md](deploy/CLOUDWAYS.md) once connected.
 
 Built for Hacktoberfest 2026 Hack Day: *Best Open-Source AI Project*, *Best Use of Gemma 4*,

@@ -15,7 +15,7 @@ WITH_WEB=0
 echo "==> system packages"
 export DEBIAN_FRONTEND=noninteractive
 apt-get update -qq
-apt-get install -y -qq git curl ca-certificates python3 python3-venv build-essential >/dev/null
+apt-get install -y -qq git curl ca-certificates python3 python3-venv build-essential nginx >/dev/null
 
 if [[ ! -d "$REPO_DIR/.git" ]]; then
   echo "==> cloning RepoLens into $REPO_DIR"
@@ -70,15 +70,21 @@ if [[ $WITH_WEB -eq 1 ]]; then
   systemctl restart repolens-web
 fi
 
+echo "==> nginx on :80  (/api/ -> backend, / -> web)"
+rm -f /etc/nginx/sites-enabled/default
+install -m 644 "$REPO_DIR/deploy/nginx-repolens.conf" /etc/nginx/sites-available/repolens
+ln -sf /etc/nginx/sites-available/repolens /etc/nginx/sites-enabled/repolens
+nginx -t >/dev/null && systemctl enable --now nginx >/dev/null 2>&1 && systemctl reload nginx
+
 echo "==> firewall"
 if command -v ufw >/dev/null 2>&1 && ufw status | grep -q "Status: active"; then
-  ufw allow 8000/tcp >/dev/null
-  [[ $WITH_WEB -eq 1 ]] && ufw allow 3000/tcp >/dev/null
+  ufw allow 80/tcp >/dev/null
+  ufw allow 443/tcp >/dev/null
 fi
 
 sleep 2
 IP=$(curl -s -m 3 http://169.254.169.254/metadata/v1/interfaces/public/0/ipv4/address || hostname -I | awk '{print $1}')
 echo
-echo "RepoLens API:  http://$IP:8000/health  ->  $(curl -s -m 5 http://127.0.0.1:8000/health || echo 'not responding yet')"
-[[ $WITH_WEB -eq 1 ]] && echo "RepoLens web:  http://$IP:3000"
-echo "Set BACKEND_URL=http://$IP:8000 in Cloudways Velocity for the frontend."
+echo "RepoLens API:  http://$IP/api/health  ->  $(curl -s -m 5 http://127.0.0.1/api/health || echo 'not responding yet')"
+[[ $WITH_WEB -eq 1 ]] && echo "RepoLens web:  http://$IP/"
+echo "Set BACKEND_URL=http://$IP/api in Cloudways Velocity for the frontend."

@@ -140,7 +140,8 @@ def tour(job_id: str, refresh: bool = False):
                 existing = {}
         lp.write_text(json.dumps(existing | labels, indent=2))
         data["graph_html_relabelled"] = regenerate_html(job)
-    cache.write_text(json.dumps(data, indent=2))
+    if gemma.available():  # never cache the graph-only fallback; it should upgrade once a key is configured
+        cache.write_text(json.dumps(data, indent=2))
     return data
 
 

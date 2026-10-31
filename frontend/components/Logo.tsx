@@ -1,18 +1,24 @@
 import Link from "next/link";
 
 export default function Logo({ small = false }: { small?: boolean }) {
+  const s = small ? 28 : 36;
   return (
-    <Link href="/" className="flex items-center gap-2 select-none">
-      <svg width={small ? 26 : 34} height={small ? 26 : 34} viewBox="0 0 34 34" fill="none" aria-hidden>
-        <circle cx="17" cy="17" r="15" stroke="var(--accent)" strokeWidth="2" />
-        <circle cx="17" cy="17" r="6" fill="var(--accent-2)" />
-        <circle cx="7" cy="12" r="2.2" fill="var(--accent)" />
-        <circle cx="27" cy="10" r="2.2" fill="var(--accent)" />
-        <circle cx="25" cy="26" r="2.2" fill="var(--accent)" />
-        <path d="M9 13 L13 15 M25 11 L21 14 M23 25 L20 21" stroke="var(--accent)" strokeWidth="1.5" />
-      </svg>
-      <span className={`font-semibold tracking-tight ${small ? "text-lg" : "text-2xl"}`}>
-        Repo<span className="text-accent">Lens</span>
+    <Link href="/" className="group flex select-none items-center gap-2.5">
+      <span
+        className="relative flex items-center justify-center rounded-xl grad-bg"
+        style={{ width: s, height: s, boxShadow: "0 6px 20px -8px rgba(139,92,246,.9)" }}
+      >
+        <svg width={s * 0.62} height={s * 0.62} viewBox="0 0 24 24" fill="none" aria-hidden>
+          <circle cx="12" cy="12" r="3.2" fill="white" />
+          <circle cx="4.5" cy="7" r="1.8" fill="white" opacity=".9" />
+          <circle cx="19.5" cy="6" r="1.8" fill="white" opacity=".9" />
+          <circle cx="18" cy="18.5" r="1.8" fill="white" opacity=".9" />
+          <circle cx="6" cy="18" r="1.8" fill="white" opacity=".9" />
+          <path d="M6 8l3.6 2.4M18 7.2l-3.6 2.6M16.6 17.2l-2.6-3M7.4 16.8l2.6-2.8" stroke="white" strokeWidth="1.4" strokeLinecap="round" opacity=".85" />
+        </svg>
+      </span>
+      <span className={`font-semibold tracking-tight ${small ? "text-[17px]" : "text-[22px]"}`}>
+        Repo<span className="grad-text">Lens</span>
       </span>
     </Link>
   );

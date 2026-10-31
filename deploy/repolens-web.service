@@ -11,9 +11,12 @@ EnvironmentFile=-/etc/repolens.env
 Environment=NODE_ENV=production
 Environment=PORT=3000
 Environment=BACKEND_URL=http://127.0.0.1:8000
-ExecStart=/usr/bin/npm run start -- -p 3000
+# run next directly (not via npm) so SIGTERM reaches the server and restarts are fast
+ExecStart=/usr/bin/node node_modules/next/dist/bin/next start -p 3000 -H 127.0.0.1
 Restart=always
 RestartSec=3
+KillMode=mixed
+TimeoutStopSec=10
 
 [Install]
 WantedBy=multi-user.target
