@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { ArrowRight, X } from "lucide-react";
-import { ActionStream, BigNumber, Section, type Step } from "./ui";
+import { ActionStream, BigNumber, Inline, Section, type Step } from "./ui";
 import { api, type DiagramResult } from "@/lib/api";
 
 const STEPS: Step[] = [
@@ -129,7 +129,7 @@ export default function DiagramPanel({ repoId }: { repoId: string }) {
                 <span>Drift summary</span>
                 <span className="mono normal-case tracking-normal">{res.model}</span>
               </div>
-              <p className="text-[18px] font-light leading-snug tracking-tight">{res.drift_summary}</p>
+              <p className="text-[18px] font-light leading-snug tracking-tight"><Inline text={res.drift_summary} /></p>
             </div>
           </section>
 
@@ -150,7 +150,7 @@ export default function DiagramPanel({ repoId }: { repoId: string }) {
                         <div className="mono mt-0.5 truncate text-[11.5px] text-ink-3">→ {c.matched_node}</div>
                       ) : null}
                     </div>
-                    <div className="text-[13.5px] text-ink-2">{c.note}</div>
+                    <div className="text-[13.5px] text-ink-2"><Inline text={c.note || ""} /></div>
                     <span className={`micro md:justify-self-end ${ok ? "!text-ok" : "!text-bad"}`}>
                       {ok ? (c.verified ? "verified" : "found") : "not in code"}
                     </span>

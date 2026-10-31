@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { ArrowDown, Download, RefreshCw } from "lucide-react";
 import Markdown from "./Markdown";
-import { ActionStream, Section, type Step } from "./ui";
+import { ActionStream, Inline, Section, type Step } from "./ui";
 import { api, type Tour } from "@/lib/api";
 
 const LOADING: Step[] = [
@@ -66,7 +66,7 @@ export default function TourPanel({ repoId, onRelabelled }: { repoId: string; on
             </button>
           </div>
         </div>
-        <p className="display display-md !leading-[1.15] max-w-4xl">{tour.architecture_summary}</p>
+        <p className="display display-md !leading-[1.15] max-w-4xl"><Inline text={tour.architecture_summary} /></p>
         {tour.parse_warning && <p className="mt-3 text-xs text-warn">{tour.parse_warning}</p>}
       </section>
 
@@ -80,7 +80,7 @@ export default function TourPanel({ repoId, onRelabelled }: { repoId: string; on
                 <div className="text-[18px] font-medium tracking-tight">{s.node}</div>
                 <div className="mono mt-0.5 text-[11.5px] text-accent">{s.file}</div>
               </div>
-              <div className="text-[14px] leading-snug text-ink-2 md:pt-1">{s.why}</div>
+              <div className="text-[14px] leading-snug text-ink-2 md:pt-1"><Inline text={s.why} /></div>
             </li>
           ))}
         </ol>
@@ -96,7 +96,7 @@ export default function TourPanel({ repoId, onRelabelled }: { repoId: string; on
                   <span className="mono text-[10px] text-ink-4">C{s.community}</span>
                   <span className="text-[15px] font-medium">{s.label}</span>
                 </div>
-                <div className="ml-[34px] text-[13px] text-ink-2">{s.role}</div>
+                <div className="ml-[34px] text-[13px] text-ink-2"><Inline text={s.role} /></div>
               </li>
             ))}
           </ul>
@@ -110,7 +110,7 @@ export default function TourPanel({ repoId, onRelabelled }: { repoId: string; on
                 <span className="mono text-[11px] text-ink-3">{String(i + 1).padStart(2, "0")}</span>
                 <div className="min-w-0">
                   <div className="mono truncate text-[12.5px] text-ink">{r.file}</div>
-                  <div className="text-[13px] text-ink-2">{r.what_to_look_for}</div>
+                  <div className="text-[13px] text-ink-2"><Inline text={r.what_to_look_for} /></div>
                 </div>
               </li>
             ))}
@@ -124,7 +124,7 @@ export default function TourPanel({ repoId, onRelabelled }: { repoId: string; on
           {(tour.gotchas || []).map((g, i) => (
             <li key={i} className="row flex gap-3 py-3 text-[14px] leading-snug text-ink-2">
               <span className="mt-[7px] h-1.5 w-1.5 shrink-0 rounded-full bg-accent" />
-              {g}
+              <Inline text={g} />
             </li>
           ))}
           {!tour.gotchas?.length && <li className="row py-3 text-sm text-ink-3">None flagged.</li>}

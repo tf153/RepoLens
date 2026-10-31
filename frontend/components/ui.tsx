@@ -99,6 +99,24 @@ export function Section({ index, title, right, children, className = "" }: { ind
   );
 }
 
+/* ---------------- inline `code` rendering for model prose ---------------- */
+export function Inline({ text, className = "" }: { text: string; className?: string }) {
+  const parts = text.split(/(`[^`]+`)/g);
+  return (
+    <span className={className}>
+      {parts.map((p, i) =>
+        p.startsWith("`") && p.endsWith("`") ? (
+          <code key={i} className="mono rounded-[3px] bg-paper-2 px-1 text-[0.72em] font-medium text-ink">
+            {p.slice(1, -1)}
+          </code>
+        ) : (
+          <span key={i}>{p}</span>
+        ),
+      )}
+    </span>
+  );
+}
+
 export function Skeleton({ lines = 3 }: { lines?: number }) {
   return (
     <div className="space-y-3">
