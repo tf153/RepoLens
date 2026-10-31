@@ -1,16 +1,15 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { ArrowUp, ChevronDown, GitCommitHorizontal, Route, Sparkles, User } from "lucide-react";
+import { ArrowDown, ArrowRight } from "lucide-react";
 import Markdown from "./Markdown";
-import { ActionStream, ConfidencePill, type Step } from "./ui";
+import { ActionStream, Prov, type Step } from "./ui";
 import { api, type ChatResult, type EdgeRow } from "@/lib/api";
 
 interface Turn {
   q: string;
   r?: ChatResult;
   error?: string;
-  startedAt: number;
 }
 
 function thinkingSteps(elapsedMs: number): Step[] {
@@ -18,29 +17,10 @@ function thinkingSteps(elapsedMs: number): Step[] {
   const st = (i: number): Step["state"] => (i < stage ? "done" : i === stage ? "active" : "pending");
   return [
     { label: "Resolve question terms to graph symbols", state: st(0) },
-    { label: "Traverse 2-hop neighbourhood", state: st(1) },
+    { label: "Traverse the 2-hop neighbourhood", state: st(1) },
     { label: "Compute shortest paths between seeds", state: st(2) },
     { label: "Gemma 4 composes the answer from evidence only", state: st(3) },
   ];
-}
-
-function Chain({ path }: { path: EdgeRow[] }) {
-  if (!path.length) return null;
-  return (
-    <div className="mono flex flex-wrap items-center gap-1 text-[12px]">
-      <span className="rounded-md border border-line bg-black/30 px-1.5 py-0.5 text-fg" title={path[0].source_loc}>
-        {path[0].source}
-      </span>
-      {path.map((e, i) => (
-        <span key={i} className="flex items-center gap-1">
-          <span className={`text-[11px] ${e.confidence === "EXTRACTED" ? "text-ok" : "text-warn"}`}>─{e.relation}→</span>
-          <span className="rounded-md border border-line bg-black/30 px-1.5 py-0.5 text-fg" title={e.target_loc}>
-            {e.target}
-          </span>
-        </span>
-      ))}
-    </div>
-  );
 }
 
 function Thinking() {
@@ -53,6 +33,29 @@ function Thinking() {
   return <ActionStream compact steps={thinkingSteps(t)} />;
 }
 
+function Chain({ path }: { path: EdgeRow[] }) {
+  if (!path.length) return null;
+  return (
+    <div className="mono flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px]">
+      <span className="text-ink" title={path[0].source_loc}>
+        {path[0].source}
+      </span>
+      {path.map((e, i) => (
+        <span key={i} className="flex items-center gap-2">
+          <span className="flex items-center gap-1 text-ink-3">
+            <Prov confidence={e.confidence} label={false} />
+            {e.relation}
+            <ArrowRight size={11} />
+          </span>
+          <span className="text-ink" title={e.target_loc}>
+            {e.target}
+          </span>
+        </span>
+      ))}
+    </div>
+  );
+}
+
 export default function AskPanel({ repoId, suggestions }: { repoId: string; suggestions: string[] }) {
   const [q, setQ] = useState("");
   const [turns, setTurns] = useState<Turn[]>([]);
@@ -60,7 +63,7 @@ export default function AskPanel({ repoId, suggestions }: { repoId: string; sugg
   const bottom = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    bottom.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+    if (turns.length) bottom.current?.scrollIntoView({ behavior: "smooth", block: "end" });
   }, [turns]);
 
   async function ask(question: string) {
@@ -68,7 +71,7 @@ export default function AskPanel({ repoId, suggestions }: { repoId: string; sugg
     setBusy(true);
     setQ("");
     const idx = turns.length;
-    setTurns((t) => [...t, { q: question, startedAt: Date.now() }]);
+    setTurns((t) => [...t, { q: question }]);
     try {
       const r = await api.chat(repoId, question);
       setTurns((t) => t.map((x, i) => (i === idx ? { ...x, r } : x)));
@@ -80,81 +83,99 @@ export default function AskPanel({ repoId, suggestions }: { repoId: string; sugg
   }
 
   return (
-    <div className="flex flex-col gap-3" style={{ minHeight: "calc(100vh - 96px)" }}>
-      {/* intro / empty state */}
+    <div className="flex flex-col" style={{ minHeight: "calc(100vh - 240px)" }}>
+      <div className="flex items-baseline justify-between pb-4">
+        <span className="micro">03 / Ask the graph</span>
+        <span className="micro flex items-center gap-4">
+          <span className="flex items-center gap-1.5">
+            <span className="dot dot-filled" /> extracted
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span className="dot" /> inferred
+          </span>
+        </span>
+      </div>
+
+      {/* composer — editorial field */}
+      <form
+        className="grid items-end gap-4 md:grid-cols-12"
+        onSubmit={(e) => {
+          e.preventDefault();
+          ask(q);
+        }}
+      >
+        <div className="md:col-span-10">
+          <input
+            className="field display !text-[clamp(22px,2.4vw,34px)] !font-light"
+            placeholder="How does auth reach the database?"
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            disabled={busy}
+          />
+        </div>
+        <div className="flex md:col-span-2 md:justify-end">
+          <button className="btn btn-ink w-full md:w-auto" disabled={busy || !q.trim()}>
+            {busy ? "Tracing" : "Ask"} <ArrowRight size={15} />
+          </button>
+        </div>
+      </form>
+
       {turns.length === 0 && (
-        <div className="glass p-6 rise">
-          <div className="flex items-center gap-2">
-            <span className="flex h-8 w-8 items-center justify-center rounded-lg grad-bg text-white">
-              <Route size={15} />
-            </span>
-            <div>
-              <div className="font-semibold">Ask the graph</div>
-              <div className="text-xs text-muted">
-                Answers come from traversal, not grep. Every hop carries provenance:{" "}
-                <ConfidencePill confidence="EXTRACTED" /> explicit in source · <ConfidencePill confidence="INFERRED" /> resolved by Graphify.
-              </div>
-            </div>
-          </div>
-          <div className="mt-5 grid gap-2 sm:grid-cols-3">
+        <div className="rise mt-10">
+          <div className="micro pb-2">Suggested</div>
+          <ul>
             {suggestions.map((s) => (
-              <button key={s} className="inset group p-3 text-left text-[13px] transition hover:border-line-2" onClick={() => ask(s)} disabled={busy}>
-                <div className="text-muted group-hover:text-fg">{s}</div>
-                <div className="mt-2 flex items-center gap-1 text-[11px] text-accent opacity-0 transition group-hover:opacity-100">
-                  Ask <ArrowUp size={11} className="rotate-45" />
-                </div>
-              </button>
+              <li key={s}>
+                <button className="lrow lrow-hover w-full grid-cols-[1fr_24px] px-1 text-left text-[17px] font-light tracking-tight" onClick={() => ask(s)} disabled={busy}>
+                  <span>{s}</span>
+                  <ArrowRight size={16} className="justify-self-end" />
+                </button>
+              </li>
             ))}
-          </div>
+          </ul>
+          <p className="mt-6 max-w-xl text-[13.5px] leading-relaxed text-ink-3">
+            Answers come from traversal, not grep: question terms are resolved to graph symbols, a 2-hop neighbourhood and
+            the shortest paths between them are extracted, and Gemma 4 answers only from that evidence, citing file:line.
+          </p>
         </div>
       )}
 
-      {/* conversation */}
-      <div className="flex-1 space-y-4">
+      {/* turns */}
+      <div className="mt-10 space-y-14">
         {turns.map((t, i) => (
-          <div key={i} className="space-y-3 rise">
-            {/* user bubble */}
-            <div className="flex justify-end">
-              <div className="glass glass-2 max-w-[80%] rounded-2xl rounded-br-md px-4 py-2.5 text-[14.5px]">
-                <div className="mb-1 flex items-center justify-end gap-1.5 text-[10.5px] text-muted">
-                  you <User size={11} />
-                </div>
-                {t.q}
+          <article key={i} className="rise">
+            <div className="rule-ink" />
+            <div className="grid gap-6 pt-5 md:grid-cols-12">
+              <div className="md:col-span-4">
+                <div className="micro">Q{String(i + 1).padStart(2, "0")}</div>
+                <h3 className="display display-md mt-2 !leading-[1.1]">{t.q}</h3>
               </div>
-            </div>
-            {/* agent bubble */}
-            <div className="flex gap-3">
-              <span className="mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-xl grad-bg text-white" style={{ boxShadow: "0 6px 18px -8px rgba(139,92,246,.9)" }}>
-                <Sparkles size={15} />
-              </span>
-              <div className="glass min-w-0 flex-1 rounded-2xl rounded-tl-md p-4">
-                <div className="mb-1.5 flex items-center gap-2 text-[10.5px] text-muted">
-                  RepoLens
-                  {t.r && <span className="mono pill !py-0 text-[10px]">{t.r.model}</span>}
+              <div className="min-w-0 md:col-span-8">
+                <div className="micro flex items-center justify-between pb-3">
+                  <span>RepoLens</span>
+                  {t.r && <span className="mono normal-case tracking-normal">{t.r.model}</span>}
                 </div>
                 {!t.r && !t.error && <Thinking />}
-                {t.error && <div className="text-sm text-bad">{t.error}</div>}
+                {t.error && <p className="text-bad">{t.error}</p>}
                 {t.r && (
                   <>
                     <Markdown>{t.r.answer}</Markdown>
-                    <details className="group mt-3 rounded-xl border border-line bg-black/25">
-                      <summary className="flex cursor-pointer list-none items-center gap-2 px-3 py-2 text-[12.5px] text-muted">
-                        <GitCommitHorizontal size={13} className="text-accent" />
+                    <details className="group mt-6">
+                      <summary className="micro flex cursor-pointer list-none items-center gap-3 border-t border-rule py-3">
                         Graph evidence
-                        <span className="mono text-[11px]">
-                          · {t.r.seeds.length} seeds · {t.r.explored.toLocaleString()} explored · {t.r.paths.length} paths · {t.r.evidence.length} edges
+                        <span className="mono normal-case tracking-normal text-ink-3">
+                          {t.r.seeds.length} seeds · {t.r.explored.toLocaleString()} explored · {t.r.paths.length} paths · {t.r.evidence.length} edges
                         </span>
-                        <ChevronDown size={13} className="ml-auto transition group-open:rotate-180" />
+                        <ArrowDown size={12} className="ml-auto transition group-open:rotate-180" />
                       </summary>
-                      <div className="space-y-4 border-t border-line p-3">
+                      <div className="space-y-6 pb-2">
                         {t.r.seeds.length > 0 && (
                           <div>
-                            <div className="eyebrow mb-1.5">Seed symbols</div>
-                            <div className="flex flex-wrap gap-1.5">
+                            <div className="micro pb-2">Seed symbols</div>
+                            <div className="flex flex-wrap gap-x-5 gap-y-1">
                               {t.r.seeds.map((s, k) => (
-                                <span key={k} className="pill mono" title={s.community}>
-                                  <span className="text-fg">{s.label}</span>
-                                  <span className="text-muted-2">{s.loc}</span>
+                                <span key={k} className="mono text-[12px]" title={s.community}>
+                                  <span className="text-ink">{s.label}</span> <span className="text-ink-3">{s.loc}</span>
                                 </span>
                               ))}
                             </div>
@@ -162,8 +183,8 @@ export default function AskPanel({ repoId, suggestions }: { repoId: string; sugg
                         )}
                         {t.r.paths.length > 0 && (
                           <div>
-                            <div className="eyebrow mb-1.5">Shortest paths</div>
-                            <div className="space-y-1.5">
+                            <div className="micro pb-2">Shortest paths</div>
+                            <div className="space-y-2">
                               {t.r.paths.map((p, k) => (
                                 <Chain key={k} path={p} />
                               ))}
@@ -172,15 +193,16 @@ export default function AskPanel({ repoId, suggestions }: { repoId: string; sugg
                         )}
                         {t.r.evidence.length > 0 && (
                           <div>
-                            <div className="eyebrow mb-1.5">Edges handed to Gemma 4</div>
-                            <ul className="mono max-h-56 space-y-1 overflow-auto pr-1 text-[11.5px] text-muted">
+                            <div className="micro pb-2">Edges handed to Gemma 4</div>
+                            <ul className="mono max-h-64 overflow-auto text-[11.5px]">
                               {t.r.evidence.map((e, k) => (
-                                <li key={k} className="flex flex-wrap items-center gap-x-1.5">
-                                  <span className="text-fg">{e.source}</span>
-                                  <span className="text-muted-2">─{e.relation}→</span>
-                                  <span className="text-fg">{e.target}</span>
-                                  <ConfidencePill confidence={e.confidence} />
-                                  <span className="text-muted-2">
+                                <li key={k} className="row grid grid-cols-[16px_1fr_auto] items-center gap-3 py-1.5">
+                                  <Prov confidence={e.confidence} label={false} />
+                                  <span className="truncate">
+                                    <span className="text-ink">{e.source}</span> <span className="text-ink-3">{e.relation} →</span>{" "}
+                                    <span className="text-ink">{e.target}</span>
+                                  </span>
+                                  <span className="truncate text-ink-3">
                                     {e.file}:{e.loc}
                                   </span>
                                 </li>
@@ -194,31 +216,10 @@ export default function AskPanel({ repoId, suggestions }: { repoId: string; sugg
                 )}
               </div>
             </div>
-          </div>
+          </article>
         ))}
         <div ref={bottom} />
       </div>
-
-      {/* composer */}
-      <form
-        className="glass glass-solid sticky bottom-3 flex items-center gap-2 p-2 pl-4 glow"
-        onSubmit={(e) => {
-          e.preventDefault();
-          ask(q);
-        }}
-      >
-        <Route size={16} className="shrink-0 text-accent" />
-        <input
-          className="w-full bg-transparent py-2 text-[14.5px] text-fg outline-none placeholder:text-muted-2"
-          placeholder='Ask a structural question — "how does auth reach the database?"'
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-          disabled={busy}
-        />
-        <button className="btn-primary !rounded-lg !px-3 !py-2" disabled={busy || !q.trim()} title="Ask">
-          <ArrowUp size={16} />
-        </button>
-      </form>
     </div>
   );
 }

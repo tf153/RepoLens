@@ -2,25 +2,24 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import {
-  ArrowRight,
-  Boxes,
-  Braces,
-  Code2,
-  GitBranch,
-  Image as ImageIcon,
-  MessageSquareText,
-  Network,
-  Sparkles,
-  Terminal,
-  Waypoints,
-} from "lucide-react";
+import { ArrowRight, ArrowUpRight } from "lucide-react";
 import Logo from "@/components/Logo";
-import { ActionStream, type Step } from "@/components/ui";
+import { ActionStream, Marquee, type Step } from "@/components/ui";
 import { api, type Job, type RepoListItem } from "@/lib/api";
 
 const ORDER = ["queued", "cloning", "extracting", "reporting", "ready"];
 const EXAMPLES = ["encode/starlette", "pallets/flask", "tiangolo/fastapi"];
+const TICKER = [
+  "Graphify · tree-sitter AST",
+  "Leiden communities",
+  "God nodes",
+  "Gemma 4 · open weights",
+  "EXTRACTED / INFERRED provenance",
+  "No vector store",
+  "Diagram drift check",
+  "/repolens agent skill",
+  "Apache-2.0",
+];
 
 function pipelineSteps(job: Job | null, busy: boolean): Step[] {
   const cur = job ? ORDER.indexOf(job.status) : busy ? 0 : -1;
@@ -31,10 +30,10 @@ function pipelineSteps(job: Job | null, busy: boolean): Step[] {
     state: err && idx === cur ? "error" : idx < cur ? "done" : idx === cur ? "active" : "pending",
   });
   return [
-    mk(1, "Clone repository", "git clone --depth 1 · public repos only"),
-    mk(2, "Graphify: parse AST → knowledge graph", job?.stats?.nodes ? `${job.stats.nodes} nodes · ${job.stats.edges} edges` : "tree-sitter, deterministic, no LLM"),
-    mk(3, "Leiden communities · god nodes · report", job?.stats?.communities ? `${job.stats.communities} communities` : "GRAPH_REPORT.md + interactive graph.html"),
-    { label: "Ready — open the tour", state: cur >= 4 ? "done" : "pending" },
+    mk(1, "Clone repository", "git clone --depth 1 — public repositories only"),
+    mk(2, "Parse the AST into a knowledge graph", job?.stats?.nodes ? `${job.stats.nodes.toLocaleString()} nodes · ${job.stats.edges?.toLocaleString()} edges` : "Graphify, deterministic, no model involved"),
+    mk(3, "Cluster subsystems, rank god nodes", job?.stats?.communities ? `${job.stats.communities} Leiden communities` : "GRAPH_REPORT.md and the interactive graph"),
+    { label: "Open the tour", state: cur >= 4 ? "done" : "pending" },
   ];
 }
 
@@ -86,202 +85,208 @@ export default function Home() {
   }
 
   return (
-    <main className="mx-auto flex w-full max-w-6xl flex-1 flex-col px-6 pb-16">
-      {/* nav */}
-      <header className="glass mt-5 flex items-center justify-between px-4 py-2.5">
-        <Logo small />
-        <nav className="flex items-center gap-2">
-          <span className="pill pill-violet hidden sm:inline-flex">
-            <Sparkles size={12} /> Gemma 4 · Graphify
+    <main className="mx-auto flex w-full max-w-[1400px] flex-1 flex-col px-6 md:px-10">
+      {/* rail */}
+      <header className="flex items-center justify-between py-5">
+        <Logo />
+        <nav className="micro flex items-center gap-7">
+          <span className="hidden items-center gap-2 sm:flex">
+            <span className="dot dot-accent" /> Gemma 4 · Graphify
           </span>
-          <a className="btn-ghost !px-3 !py-1.5 text-xs" href="https://github.com/tf153/RepoLens/blob/main/skills/repolens/SKILL.md" target="_blank" rel="noreferrer">
-            <Terminal size={13} /> /repolens skill
+          <a className="ulink" href="https://github.com/tf153/RepoLens/blob/main/skills/repolens/SKILL.md" target="_blank" rel="noreferrer">
+            Skill
           </a>
-          <a className="btn-ghost !px-3 !py-1.5 text-xs" href="https://github.com/tf153/RepoLens" target="_blank" rel="noreferrer">
-            <Code2 size={13} /> GitHub
+          <a className="ulink" href="https://github.com/tf153/RepoLens" target="_blank" rel="noreferrer">
+            GitHub
           </a>
         </nav>
       </header>
+      <div className="rule-ink" />
 
       {/* hero */}
-      <section className="mx-auto mt-20 max-w-3xl text-center">
-        <span className="pill pill-accent rise">
-          <span className="h-1.5 w-1.5 rounded-full bg-accent dot-live" /> Open-source · Apache-2.0 · open-weight AI
-        </span>
-        <h1 className="rise rise-1 mt-6 text-[44px] font-semibold leading-[1.05] tracking-[-0.02em] md:text-[64px]">
-          Understand any codebase <span className="grad-text">in minutes</span>, not weeks.
-        </h1>
-        <p className="rise rise-2 mx-auto mt-5 max-w-2xl text-[17px] leading-relaxed text-muted">
-          Paste a public repo. <b className="text-fg">Graphify</b> maps it into a knowledge graph — no LLM, no vector
-          store. <b className="text-fg">Gemma&nbsp;4</b> reads the graph and gives you a guided tour, answers &ldquo;how
-          does X reach Y?&rdquo; by walking edges, and checks your whiteboard against the real architecture.
-        </p>
+      <section className="grid gap-10 pb-16 pt-14 md:grid-cols-12 md:pt-20">
+        <div className="md:col-span-8">
+          <div className="micro rise">Codebase onboarding — open-source, open-weight</div>
+          <h1 className="display display-xl rise rise-1 mt-5">
+            Read any codebase
+            <br />
+            like you <span className="italic">wrote</span> it.
+          </h1>
+        </div>
+        <div className="flex flex-col justify-end md:col-span-4">
+          <p className="lede rise rise-2">
+            Paste a public repository. Graphify maps it into a knowledge graph — no model, no vector store. Gemma 4 reads
+            the graph and hands you a guided tour, answers &ldquo;how does X reach Y?&rdquo; by walking edges, and checks
+            your whiteboard against the real architecture.
+          </p>
+          <dl className="rise rise-3 mt-8 grid grid-cols-3 gap-4">
+            {[
+              ["Graph", "Graphify"],
+              ["Model", "gemma-4-26b-a4b-it"],
+              ["Host", "Cloudways · DO"],
+            ].map(([k, v]) => (
+              <div key={k}>
+                <dt className="micro">{k}</dt>
+                <dd className="mono mt-1 truncate text-[12px] text-ink-2">{v}</dd>
+              </div>
+            ))}
+          </dl>
+        </div>
+      </section>
 
-        {/* command bar */}
+      {/* input */}
+      <section className="rise rise-3">
+        <div className="rule-ink" />
         <form
-          className="rise rise-3 glass mx-auto mt-9 flex max-w-2xl items-center gap-2 p-2 pl-4 glow"
+          className="grid items-end gap-4 py-6 md:grid-cols-12"
           onSubmit={(e) => {
             e.preventDefault();
             if (url.trim()) start(url.trim());
           }}
         >
-          <GitBranch size={18} className="shrink-0 text-accent" />
-          <input
-            className="w-full bg-transparent py-2 text-[15px] text-fg outline-none placeholder:text-muted-2"
-            placeholder="https://github.com/owner/repo"
-            value={url}
-            onChange={(e) => setUrl(e.target.value)}
-            disabled={busy}
-            autoFocus
-          />
-          <button className="btn-primary whitespace-nowrap" disabled={busy || !url.trim()}>
-            {busy ? "Mapping…" : "Map it"} <ArrowRight size={16} />
-          </button>
+          <div className="md:col-span-9">
+            <label className="micro">Repository URL</label>
+            <input
+              className="field display mt-2 !text-[clamp(22px,2.6vw,36px)] !font-light"
+              placeholder="https://github.com/owner/repo"
+              value={url}
+              onChange={(e) => setUrl(e.target.value)}
+              disabled={busy}
+              autoFocus
+            />
+          </div>
+          <div className="flex items-center justify-between gap-4 md:col-span-3 md:justify-end">
+            <button className="btn btn-ink w-full md:w-auto" disabled={busy || !url.trim()}>
+              {busy ? "Mapping" : "Map it"} <ArrowRight size={15} />
+            </button>
+          </div>
         </form>
-        <div className="rise rise-4 mt-3 flex flex-wrap items-center justify-center gap-2 text-xs text-muted">
-          <span>Try:</span>
+        <div className="flex flex-wrap items-center gap-x-5 gap-y-2 pb-6">
+          <span className="micro">Try</span>
           {EXAMPLES.map((ex) => (
-            <button key={ex} className="pill hover:text-fg" disabled={busy} onClick={() => start(`https://github.com/${ex}`)}>
+            <button key={ex} className="ulink mono text-[12.5px] text-ink-2 hover:text-ink" disabled={busy} onClick={() => start(`https://github.com/${ex}`)}>
               {ex}
             </button>
           ))}
         </div>
 
-        {/* agent action stream */}
         {(job || busy || error) && (
-          <div className="glass mx-auto mt-8 max-w-2xl p-5 text-left rise">
-            <div className="mb-4 flex items-center justify-between">
-              <div className="flex items-center gap-2 text-sm font-medium">
-                <Network size={15} className="text-accent" /> Agent pipeline
-                {job?.name && <span className="mono text-muted">· {job.name}</span>}
-              </div>
-              <span className={`pill ${error ? "pill-bad" : "pill-accent"}`}>{error ? "failed" : job?.status || "starting"}</span>
+          <div className="rise pb-10">
+            <div className="flex items-baseline justify-between py-3">
+              <span className="micro !text-ink">Pipeline {job?.name && <span className="mono ml-2 normal-case tracking-normal text-ink-3">{job.name}</span>}</span>
+              <span className={`micro ${error ? "!text-bad" : "!text-accent"}`}>{error ? "failed" : job?.status || "starting"}</span>
             </div>
             <ActionStream steps={pipelineSteps(job, busy)} />
-            {job?.message && !error && <div className="mono mt-4 text-xs text-muted">{job.message}</div>}
-            {error && (
-              <div className="mt-4 rounded-lg border border-bad/40 bg-bad/10 p-3 text-sm text-bad">
-                {error}
-              </div>
-            )}
+            {job?.message && !error && <div className="mono mt-3 text-[12px] text-ink-3">{job.message}</div>}
+            {error && <div className="mt-3 text-[14px] text-bad">{error}</div>}
           </div>
         )}
       </section>
 
-      {/* already mapped */}
+      <Marquee items={TICKER} />
+
+      {/* already mapped — index table */}
       {repos.length > 0 && (
-        <section className="mt-20">
-          <div className="mb-4 flex items-end justify-between">
+        <section className="pt-16">
+          <div className="flex items-end justify-between pb-4">
             <div>
-              <div className="eyebrow">Already mapped</div>
-              <h2 className="mt-1 text-xl font-semibold">Open instantly</h2>
+              <div className="micro">Index</div>
+              <h2 className="display display-md mt-2">Already mapped</h2>
             </div>
-            <span className="text-xs text-muted">{repos.length} repos cached on this node</span>
+            <span className="micro">{repos.length} repositories · open instantly</span>
           </div>
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {repos.map((r, i) => {
-              const max = Math.max(...repos.map((x) => x.stats.nodes || 0), 1);
-              return (
-                <button
-                  key={r.id}
-                  onClick={() => router.push(`/r/${r.id}`)}
-                  className={`glass glass-hover rise rise-${(i % 4) + 1} group p-5 text-left`}
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-violet/15 text-accent-2">
-                        <Boxes size={16} />
-                      </span>
-                      <div className="font-medium group-hover:text-accent">{r.name}</div>
-                    </div>
-                    {r.has_tour ? <span className="pill pill-violet">tour cached</span> : <span className="pill">graph ready</span>}
-                  </div>
-                  <div className="mono mt-4 grid grid-cols-3 gap-2 text-[11px] text-muted">
-                    <div>
-                      <div className="text-base text-fg">{r.stats.nodes?.toLocaleString() ?? "?"}</div>nodes
-                    </div>
-                    <div>
-                      <div className="text-base text-fg">{r.stats.edges?.toLocaleString() ?? "?"}</div>edges
-                    </div>
-                    <div>
-                      <div className="text-base text-fg">{r.stats.communities ?? "?"}</div>subsystems
-                    </div>
-                  </div>
-                  <div className="mt-3 h-1 w-full overflow-hidden rounded-full bg-white/5">
-                    <div className="h-full grad-bg" style={{ width: `${Math.max(8, ((r.stats.nodes || 0) / max) * 100)}%` }} />
-                  </div>
-                </button>
-              );
-            })}
+          <div className="hidden grid-cols-[48px_1fr_140px_140px_140px_40px] gap-4 pb-2 md:grid">
+            {["No.", "Repository", "Nodes", "Edges", "Subsystems", ""].map((h) => (
+              <span key={h} className="micro">
+                {h}
+              </span>
+            ))}
+          </div>
+          <div>
+            {repos.map((r, i) => (
+              <button
+                key={r.id}
+                onClick={() => router.push(`/r/${r.id}`)}
+                className="lrow lrow-hover w-full grid-cols-[48px_1fr_40px] px-1 text-left md:grid-cols-[48px_1fr_140px_140px_140px_40px]"
+              >
+                <span className="mono text-[11px] tracking-wider grey">{String(i + 1).padStart(2, "0")}</span>
+                <span className="flex items-baseline gap-3">
+                  <span className="text-[clamp(18px,1.8vw,26px)] font-light tracking-tight">{r.name}</span>
+                  {r.has_tour && <span className="micro accent-on-hover !text-accent">tour cached</span>}
+                </span>
+                <span className="num hidden text-[20px] md:block">{r.stats.nodes?.toLocaleString() ?? "—"}</span>
+                <span className="num hidden text-[20px] md:block">{r.stats.edges?.toLocaleString() ?? "—"}</span>
+                <span className="num hidden text-[20px] md:block">{r.stats.communities ?? "—"}</span>
+                <ArrowUpRight size={18} className="justify-self-end" />
+              </button>
+            ))}
           </div>
         </section>
       )}
 
-      {/* how it works */}
-      <section className="mt-20">
-        <div className="eyebrow">How it works</div>
-        <h2 className="mt-1 text-xl font-semibold">Graph first. Model second. Evidence always.</h2>
-        <div className="mt-5 grid gap-4 md:grid-cols-3">
+      {/* how it works — three oversized numerals */}
+      <section className="pt-20">
+        <div className="micro">Method</div>
+        <h2 className="display display-md mt-2 max-w-3xl">Graph first. Model second. Evidence always.</h2>
+        <div className="mt-10 grid gap-10 md:grid-cols-3">
           {[
             {
-              icon: Waypoints,
-              t: "1 · Build the graph",
-              d: "Graphify parses every function, class, import and call with tree-sitter. Leiden clustering finds subsystems; the most connected symbols become god nodes. Deterministic and local.",
+              n: "01",
+              t: "Build the graph",
+              d: "Graphify parses every function, class, import and call with tree-sitter. Leiden clustering finds subsystems; the most connected symbols become god nodes. Deterministic, local, no model.",
               tag: "Graphify",
             },
             {
-              icon: Braces,
-              t: "2 · Narrate it",
+              n: "02",
+              t: "Narrate it",
               d: "Gemma 4 is shown only graph evidence with file:line citations — god nodes, communities, surprising edges — and writes the architecture summary, start-here list and onboarding doc.",
               tag: "Gemma 4 · text",
             },
             {
-              icon: ImageIcon,
-              t: "3 · Verify against reality",
-              d: "Ask structural questions answered by traversal with EXTRACTED / INFERRED provenance on every edge, or upload a whiteboard photo and let Gemma 4 vision flag architectural drift.",
+              n: "03",
+              t: "Verify against reality",
+              d: "Ask structural questions answered by traversal, every hop marked EXTRACTED or INFERRED. Or upload a whiteboard photo and let Gemma 4 vision flag what drifted.",
               tag: "Gemma 4 · vision",
             },
-          ].map(({ icon: Icon, t, d, tag }, i) => (
-            <div key={t} className={`glass glass-hover rise rise-${i + 1} p-5`}>
-              <div className="flex items-center justify-between">
-                <span className="flex h-9 w-9 items-center justify-center rounded-xl grad-bg text-white">
-                  <Icon size={17} />
-                </span>
-                <span className="pill">{tag}</span>
+          ].map(({ n, t, d, tag }, i) => (
+            <div key={n} className={`rise rise-${i + 1}`}>
+              <div className="rule-ink" />
+              <div className="display num pt-4" style={{ fontSize: "clamp(64px, 6vw, 96px)" }}>
+                {n}
               </div>
-              <div className="mt-4 font-semibold">{t}</div>
-              <p className="mt-1.5 text-sm leading-relaxed text-muted">{d}</p>
+              <div className="mt-4 flex items-baseline justify-between">
+                <h3 className="text-[18px] font-medium">{t}</h3>
+                <span className="micro">{tag}</span>
+              </div>
+              <p className="mt-2 text-[14.5px] leading-[1.6] text-ink-2">{d}</p>
             </div>
           ))}
         </div>
       </section>
 
-      {/* skill callout */}
-      <section className="glass mt-10 flex flex-col items-start justify-between gap-4 p-5 md:flex-row md:items-center">
-        <div className="flex items-start gap-3">
-          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-violet/15 text-accent-2">
-            <MessageSquareText size={17} />
-          </span>
-          <div>
-            <div className="font-semibold">Also an Agent Skill</div>
-            <div className="mt-0.5 text-sm text-muted">
-              Type <span className="mono text-accent">/repolens</span> in Cursor, Claude Code or Codex: builds the graph, writes{" "}
-              <span className="mono">ONBOARDING.md</span>, and answers structural questions with{" "}
-              <span className="mono">graphify path / explain / query</span>.
-            </div>
-          </div>
+      {/* skill */}
+      <section className="mt-20 grid gap-6 border-y border-rule py-8 md:grid-cols-12">
+        <div className="micro md:col-span-3">Also an agent skill</div>
+        <div className="md:col-span-6">
+          <p className="text-[18px] font-light leading-snug">
+            Type <span className="mono text-[15px] text-accent">/repolens</span> in Cursor, Claude Code or Codex. It builds the
+            graph, writes <span className="mono text-[15px]">ONBOARDING.md</span>, and answers structural questions with{" "}
+            <span className="mono text-[15px]">graphify path · explain · query</span>.
+          </p>
         </div>
-        <a className="btn-ghost whitespace-nowrap" href="https://github.com/tf153/RepoLens/tree/main/skills/repolens" target="_blank" rel="noreferrer">
-          View SKILL.md <ArrowRight size={14} />
-        </a>
+        <div className="flex items-start md:col-span-3 md:justify-end">
+          <a className="btn btn-line" href="https://github.com/tf153/RepoLens/tree/main/skills/repolens" target="_blank" rel="noreferrer">
+            SKILL.md <ArrowUpRight size={15} />
+          </a>
+        </div>
       </section>
 
-      <footer className="mt-14 flex flex-col items-center justify-between gap-2 text-xs text-muted md:flex-row">
-        <div>
-          Open-weight model <span className="mono text-fg">gemma-4-26b-a4b-it</span> via the Gemini API · graph layer{" "}
-          <span className="mono text-fg">graphifyy</span> (Apache-2.0)
-        </div>
-        <div>Frontend on Cloudways Velocity · API on a DigitalOcean Droplet</div>
+      <footer className="micro flex flex-col gap-2 py-8 md:flex-row md:items-center md:justify-between">
+        <span>
+          Open-weight model <span className="mono normal-case tracking-normal text-ink">gemma-4-26b-a4b-it</span> via the Gemini API · graph layer{" "}
+          <span className="mono normal-case tracking-normal text-ink">graphifyy</span> (Apache-2.0)
+        </span>
+        <span>Hacktoberfest 2026 · Cloudways Velocity · DigitalOcean</span>
       </footer>
     </main>
   );

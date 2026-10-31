@@ -1,12 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { AlertTriangle, BookOpen, Boxes, ChevronDown, Compass, Download, FileText, Layers, RefreshCw, Sparkles } from "lucide-react";
+import { ArrowDown, Download, RefreshCw } from "lucide-react";
 import Markdown from "./Markdown";
-import { ActionStream, SectionTitle, type Step } from "./ui";
+import { ActionStream, Section, type Step } from "./ui";
 import { api, type Tour } from "@/lib/api";
 
-const LOADING_STEPS: Step[] = [
+const LOADING: Step[] = [
   { label: "Collect graph evidence", detail: "god nodes · Leiden communities · surprising cross-community edges · README", state: "done" },
   { label: "Gemma 4 reads the graph", detail: "names subsystems, picks start-here symbols, writes the reading path", state: "active" },
   { label: "Write names back to Graphify", detail: ".graphify_labels.json → re-render graph.html", state: "pending" },
@@ -39,137 +39,131 @@ export default function TourPanel({ repoId, onRelabelled }: { repoId: string; on
 
   if (loading && !tour) {
     return (
-      <div className="glass p-6 rise">
-        <div className="mb-5 flex items-center gap-2">
-          <Sparkles size={16} className="text-accent-2" />
-          <span className="font-medium">Generating the tour</span>
-          <span className="pill pill-violet ml-auto">Gemma 4</span>
+      <div className="rise">
+        <div className="flex items-baseline justify-between py-3">
+          <span className="micro !text-ink">Generating the tour</span>
+          <span className="micro !text-accent">Gemma 4</span>
         </div>
-        <ActionStream steps={LOADING_STEPS} />
+        <ActionStream steps={LOADING} />
       </div>
     );
   }
-  if (error) return <div className="glass border-bad/40 p-5 text-sm text-bad">{error}</div>;
+  if (error) return <p className="py-6 text-bad">{error}</p>;
   if (!tour) return null;
 
   const fallback = tour.model.includes("fallback");
 
   return (
-    <div className="space-y-3">
-      {/* architecture */}
-      <div className="glass relative overflow-hidden p-6 rise">
-        <div className="absolute inset-y-0 left-0 w-1 grad-bg" />
-        <div className="flex items-start justify-between gap-4">
-          <SectionTitle icon={Compass}>Architecture</SectionTitle>
-          <div className="flex items-center gap-2">
-            <span className={`pill ${fallback ? "pill-warn" : "pill-violet"} mono`}>{tour.model}</span>
-            <button className="btn-ghost !px-2.5 !py-1 text-xs" onClick={() => load(true)} disabled={loading} title="Regenerate with Gemma 4">
-              <RefreshCw size={12} className={loading ? "spin" : ""} /> Regenerate
+    <div className="space-y-14">
+      {/* architecture — pull quote */}
+      <section className="rise">
+        <div className="flex items-baseline justify-between pb-4">
+          <span className="micro">01 / Architecture</span>
+          <div className="flex items-center gap-4">
+            <span className={`tag ${fallback ? "tag-warn" : "tag-ink"} mono`}>{tour.model}</span>
+            <button className="micro ulink flex items-center gap-1.5 hover:text-ink" onClick={() => load(true)} disabled={loading}>
+              <RefreshCw size={11} className={loading ? "pulse" : ""} /> Regenerate
             </button>
           </div>
         </div>
-        <p className="text-[15.5px] leading-[1.7] text-[#d5dce8]">{tour.architecture_summary}</p>
-        {tour.parse_warning && <p className="mt-2 text-xs text-warn">{tour.parse_warning}</p>}
-      </div>
+        <p className="display display-md !leading-[1.15] max-w-4xl">{tour.architecture_summary}</p>
+        {tour.parse_warning && <p className="mt-3 text-xs text-warn">{tour.parse_warning}</p>}
+      </section>
 
-      <div className="grid gap-3 xl:grid-cols-5">
-        {/* start here */}
-        <div className="glass p-5 rise rise-1 xl:col-span-3">
-          <SectionTitle icon={BookOpen} right={<span className="pill">ordered for a first read</span>}>
-            Start reading here
-          </SectionTitle>
-          <ol className="space-y-2">
-            {tour.start_here?.map((s, i) => (
-              <li key={i} className="inset flex gap-3 p-3 transition hover:border-line-2">
-                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg grad-bg text-xs font-semibold text-white">
-                  {i + 1}
-                </span>
+      {/* start here */}
+      <Section index="02" title="Start reading here" right={<span className="micro">ordered for a first read</span>} className="rise rise-1">
+        <ol>
+          {tour.start_here?.map((s, i) => (
+            <li key={i} className="lrow grid-cols-[44px_1fr] md:grid-cols-[44px_minmax(0,1.1fr)_minmax(0,1.4fr)]">
+              <span className="num text-[22px] text-ink-3">{String(i + 1).padStart(2, "0")}</span>
+              <div className="min-w-0">
+                <div className="text-[18px] font-medium tracking-tight">{s.node}</div>
+                <div className="mono mt-0.5 text-[11.5px] text-accent">{s.file}</div>
+              </div>
+              <div className="text-[14px] leading-snug text-ink-2 md:pt-1">{s.why}</div>
+            </li>
+          ))}
+        </ol>
+      </Section>
+
+      <div className="grid gap-10 md:grid-cols-2">
+        {/* subsystems */}
+        <Section index="03" title="Subsystems" right={<span className="micro">Leiden · named by Gemma 4</span>} className="rise rise-2">
+          <ul>
+            {tour.subsystems?.slice(0, 12).map((s) => (
+              <li key={s.community} className="row py-2.5">
+                <div className="flex items-baseline gap-3">
+                  <span className="mono text-[10px] text-ink-4">C{s.community}</span>
+                  <span className="text-[15px] font-medium">{s.label}</span>
+                </div>
+                <div className="ml-[34px] text-[13px] text-ink-2">{s.role}</div>
+              </li>
+            ))}
+          </ul>
+        </Section>
+
+        {/* reading path */}
+        <Section index="04" title="Reading path" className="rise rise-3">
+          <ol>
+            {(tour.reading_path || []).map((r, i) => (
+              <li key={r.step} className="row grid grid-cols-[32px_1fr] gap-3 py-2.5">
+                <span className="mono text-[11px] text-ink-3">{String(i + 1).padStart(2, "0")}</span>
                 <div className="min-w-0">
-                  <div className="flex flex-wrap items-baseline gap-x-2">
-                    <span className="font-semibold">{s.node}</span>
-                    <span className="mono text-[11px] text-accent">{s.file}</span>
-                  </div>
-                  <div className="mt-0.5 text-[13px] text-muted">{s.why}</div>
+                  <div className="mono truncate text-[12.5px] text-ink">{r.file}</div>
+                  <div className="text-[13px] text-ink-2">{r.what_to_look_for}</div>
                 </div>
               </li>
             ))}
           </ol>
-        </div>
-
-        {/* subsystems */}
-        <div className="glass p-5 rise rise-2 xl:col-span-2">
-          <SectionTitle icon={Layers}>Subsystems</SectionTitle>
-          <p className="-mt-1 mb-3 text-xs text-muted">Leiden communities from Graphify, named by Gemma 4.</p>
-          <ul className="space-y-2">
-            {tour.subsystems?.slice(0, 12).map((s) => (
-              <li key={s.community} className="text-[13px]">
-                <div className="flex items-center gap-2">
-                  <span className="mono rounded-md bg-violet/15 px-1.5 py-0.5 text-[10px] text-accent-2">C{s.community}</span>
-                  <span className="font-medium">{s.label}</span>
-                </div>
-                <div className="ml-9 text-muted">{s.role}</div>
-              </li>
-            ))}
-          </ul>
-        </div>
+        </Section>
       </div>
 
-      <div className="grid gap-3 xl:grid-cols-2">
-        {/* reading path */}
-        <div className="glass p-5 rise rise-2">
-          <SectionTitle icon={Boxes}>Reading path</SectionTitle>
-          <ActionStream
-            steps={(tour.reading_path || []).map((r) => ({
-              label: r.file,
-              detail: r.what_to_look_for,
-              state: "done" as const,
-            }))}
-          />
-        </div>
-
-        {/* gotchas */}
-        <div className="glass p-5 rise rise-3">
-          <SectionTitle icon={AlertTriangle}>Gotchas</SectionTitle>
-          <ul className="space-y-2">
-            {(tour.gotchas || []).map((g, i) => (
-              <li key={i} className="flex gap-2.5 rounded-lg border border-warn/25 bg-warn/[0.06] p-3 text-[13px] text-[#e7d9b3]">
-                <AlertTriangle size={14} className="mt-0.5 shrink-0 text-warn" />
-                <span>{g}</span>
-              </li>
-            ))}
-            {!tour.gotchas?.length && <li className="text-sm text-muted">None flagged.</li>}
-          </ul>
-        </div>
-      </div>
+      {/* gotchas */}
+      <Section index="05" title="Gotchas" className="rise rise-3">
+        <ul className="grid gap-x-10 md:grid-cols-2">
+          {(tour.gotchas || []).map((g, i) => (
+            <li key={i} className="row flex gap-3 py-3 text-[14px] leading-snug text-ink-2">
+              <span className="mt-[7px] h-1.5 w-1.5 shrink-0 rounded-full bg-accent" />
+              {g}
+            </li>
+          ))}
+          {!tour.gotchas?.length && <li className="row py-3 text-sm text-ink-3">None flagged.</li>}
+        </ul>
+      </Section>
 
       {/* onboarding doc */}
-      <div className="glass p-5 rise rise-4">
-        <button className="flex w-full items-center justify-between" onClick={() => setShowDoc((v) => !v)}>
-          <SectionTitle icon={FileText}>Generated ONBOARDING.md</SectionTitle>
-          <span className="mb-3 flex items-center gap-2 text-sm text-muted">
-            {showDoc ? "Hide" : "Show"} <ChevronDown size={14} className={`transition ${showDoc ? "rotate-180" : ""}`} />
-          </span>
-        </button>
-        {showDoc && (
-          <div className="inset p-5">
-            <div className="mb-3 flex justify-end">
-              <button
-                className="btn-ghost !px-2.5 !py-1 text-xs"
-                onClick={() => {
-                  const blob = new Blob([tour.onboarding_md || ""], { type: "text/markdown" });
-                  const a = document.createElement("a");
-                  a.href = URL.createObjectURL(blob);
-                  a.download = "ONBOARDING.md";
-                  a.click();
-                }}
-              >
-                <Download size={12} /> Download .md
-              </button>
-            </div>
+      <Section
+        index="06"
+        title="ONBOARDING.md"
+        className="rise rise-4"
+        right={
+          <div className="flex items-center gap-5">
+            <button
+              className="micro ulink flex items-center gap-1.5 hover:text-ink"
+              onClick={() => {
+                const blob = new Blob([tour.onboarding_md || ""], { type: "text/markdown" });
+                const a = document.createElement("a");
+                a.href = URL.createObjectURL(blob);
+                a.download = "ONBOARDING.md";
+                a.click();
+              }}
+            >
+              <Download size={11} /> Download
+            </button>
+            <button className="micro ulink flex items-center gap-1.5 hover:text-ink" onClick={() => setShowDoc((v) => !v)}>
+              {showDoc ? "Collapse" : "Expand"} <ArrowDown size={11} className={`transition ${showDoc ? "rotate-180" : ""}`} />
+            </button>
+          </div>
+        }
+      >
+        {showDoc ? (
+          <div className="frame max-w-3xl p-6 md:p-8">
             <Markdown>{tour.onboarding_md || ""}</Markdown>
           </div>
+        ) : (
+          <p className="text-[14px] text-ink-3">A complete onboarding document generated from the graph. Expand to read, or download the markdown.</p>
         )}
-      </div>
+      </Section>
     </div>
   );
 }

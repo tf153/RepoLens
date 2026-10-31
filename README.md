@@ -13,6 +13,10 @@ Cloudways Velocity URL: see [deploy/CLOUDWAYS.md](deploy/CLOUDWAYS.md) once conn
 Built for Hacktoberfest 2026 Hack Day: *Best Open-Source AI Project*, *Best Use of Gemma 4*,
 *Best Use of Graphify*, *Best Use of Cloudways*.
 
+![RepoLens home](demo/screenshot-home.png)
+
+![RepoLens tour](demo/screenshot-tour.png)
+
 ---
 
 ## What it does
